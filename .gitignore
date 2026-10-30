@@ -1,0 +1,30 @@
+node_modules/
+dist/
+.env
+.env.test
+.data/
+*.log
+.DS_Store
+.env.*
+!.env.example
+!.env.production.example
+
+# Local editor state and generated reports
+.idea/
+.vscode/
+coverage/
+security-file-scan.json
+
+# Secret-provider runtime, credentials, backups, and archives
+/deploy/secrets-provider/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.sql
+*.sql.enc
+*.tar.gz
+*.tgz
+*.zip

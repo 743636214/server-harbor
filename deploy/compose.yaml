@@ -1,0 +1,80 @@
+name: server-harbor
+services:
+  mysql:
+    build:
+      context: ..
+      dockerfile: deploy/mysql.Dockerfile
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: server_harbor
+      MYSQL_USER: server_harbor
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - mysql_socket:/var/run/harbor-mysql
+      - ./secrets-provider:/run/harbor-secrets:ro
+    healthcheck:
+      test: [CMD, mysqladmin, ping, --socket=/var/run/harbor-mysql/mysql.sock, --silent]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+    networks: [database]
+  app:
+    build:
+      context: ..
+    restart: unless-stopped
+    init: true
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4317
+      PUBLIC_URL: https://${APP_DOMAIN:?Set APP_DOMAIN}
+      TRUST_PROXY: 172.30.43.2
+      BRIDGE_PORT: 4320
+      SSH_BIND_HOST: 0.0.0.0
+      SSH_PUBLIC_HOST: ${APP_DOMAIN}
+      SSH_PUBLIC_PORT: ${SSH_PUBLIC_PORT:-2222}
+      MYSQL_SOCKET_PATH: /var/run/harbor-mysql/mysql.sock
+      MYSQL_USER: server_harbor
+      MYSQL_DATABASE: server_harbor
+      HARBOR_SECRET_PROVIDER: /run/harbor-secrets/read-secret
+      RECORD_SESSIONS: 'true'
+      RECORDING_MAX_BYTES: ${RECORDING_MAX_BYTES:-33554432}
+    ports:
+      - '${SSH_PUBLIC_PORT:-2222}:4320'
+    volumes:
+      - harbor_data:/app/.data
+      - mysql_socket:/var/run/harbor-mysql
+      - ./secrets-provider:/run/harbor-secrets:ro
+    networks: [web, database]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [app]
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      web:
+        ipv4_address: 172.30.43.2
+networks:
+  web:
+    ipam:
+      config:
+        - subnet: 172.30.43.0/24
+  database:
+    internal: true
+volumes:
+  mysql_data:
+  mysql_socket:
+  harbor_data:
+  caddy_data:
+  caddy_config:
